@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "prisma": "^7.2.0",
+    "supabase": "^2.70.5",
+    "vitest": "^4.0.16"
+  }
+}
