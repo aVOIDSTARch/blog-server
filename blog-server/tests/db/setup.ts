@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { config } from "dotenv";
+import { randomUUID } from "crypto";
 
 // Load environment variables
 config({ path: ".env.local" });
@@ -52,102 +53,39 @@ export async function disconnectTestPrisma(): Promise<void> {
   }
 }
 
-// Create test user via Supabase Auth Admin API
+// Create test user directly via Prisma (both auth and public schemas)
+// Note: A database trigger auto-creates public.users when auth.users is inserted
 export async function createTestUser(): Promise<string> {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase URL or SERVICE_ROLE_KEY not set");
-  }
-
+  const prisma = getTestPrisma();
+  const userId = randomUUID();
   const testEmail = `${TEST_PREFIX}_user@test.local`;
-  const password = "TestPassword123!";
 
-  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  // Create user in auth.users schema
+  // This triggers handle_new_user() which auto-creates the public.users record
+  await prisma.auth_users.create({
+    data: {
+      id: userId,
+      instance_id: "00000000-0000-0000-0000-000000000000",
+      aud: "authenticated",
+      role: "authenticated",
       email: testEmail,
-      password,
-      email_confirm: true,
-      user_metadata: {
+      encrypted_password: "$2a$10$placeholder.hash.for.testing.only",
+      email_confirmed_at: new Date(),
+      raw_app_meta_data: { provider: "email", providers: ["email"] },
+      raw_user_meta_data: {
         display_name: `${TEST_PREFIX}_User`,
         username: `${TEST_USERNAME_PREFIX}user`,
       },
-    }),
+      created_at: new Date(),
+      updated_at: new Date(),
+      confirmation_token: "",
+      recovery_token: "",
+      email_change_token_new: "",
+      email_change: "",
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    // Check if user already exists
-    if (error.includes("already been registered") || response.status === 422) {
-      // Fetch existing user
-      const listResponse = await fetch(
-        `${supabaseUrl}/auth/v1/admin/users?filter=email.eq.${encodeURIComponent(testEmail)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${serviceRoleKey}`,
-            apikey: serviceRoleKey,
-          },
-        }
-      );
-      if (listResponse.ok) {
-        const data = await listResponse.json();
-        if (data.users && data.users.length > 0) {
-          return data.users[0].id;
-        }
-      }
-    }
-    throw new Error(`Failed to create test user: ${error}`);
-  }
-
-  const data = await response.json();
-  return data.id;
-}
-
-// Delete test user via Supabase Auth Admin API
-export async function deleteTestUser(userId: string): Promise<void> {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase URL or SERVICE_ROLE_KEY not set");
-  }
-
-  const response = await fetch(
-    `${supabaseUrl}/auth/v1/admin/users/${userId}`,
-    {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${serviceRoleKey}`,
-        apikey: serviceRoleKey,
-      },
-    }
-  );
-
-  if (!response.ok && response.status !== 404) {
-    const error = await response.text();
-    console.warn(`Warning: Failed to delete test user: ${error}`);
-  }
-}
-
-// Setup all test data
-export async function setupTestData(): Promise<TestDataIds> {
-  const prisma = getTestPrisma();
-
-  // 1. Create test user via Supabase Auth (triggers public.users creation)
-  const userId = await createTestUser();
-  testDataIds.userId = userId;
-
-  // Wait for the database trigger to create the public user
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // Update the public user with test-specific data
+  // Update the auto-created public user with test-specific data
   await prisma.public_users.update({
     where: { id: userId },
     data: {
@@ -157,6 +95,39 @@ export async function setupTestData(): Promise<TestDataIds> {
       website: "https://test.example.com",
     },
   });
+
+  return userId;
+}
+
+// Delete test user directly via Prisma
+export async function deleteTestUser(userId: string): Promise<void> {
+  const prisma = getTestPrisma();
+
+  try {
+    // Delete public user first (foreign key constraint)
+    await prisma.public_users.delete({
+      where: { id: userId },
+    }).catch(() => {});
+
+    // Delete auth user
+    await prisma.auth_users.delete({
+      where: { id: userId },
+    }).catch(() => {});
+  } catch (error) {
+    console.warn(`Warning: Failed to delete test user: ${error}`);
+  }
+}
+
+// Setup all test data
+export async function setupTestData(): Promise<TestDataIds> {
+  const prisma = getTestPrisma();
+
+  // Clean up any existing test data first
+  await cleanupOrphanedTestData();
+
+  // 1. Create test user via Prisma
+  const userId = await createTestUser();
+  testDataIds.userId = userId;
 
   // 2. Create test category
   const category = await prisma.categories.create({
@@ -360,7 +331,7 @@ export async function cleanupTestData(): Promise<void> {
       }).catch(() => {});
     }
 
-    // Delete user via Supabase Auth (cascade deletes public.users)
+    // Delete user via Prisma
     if (testDataIds.userId) {
       await deleteTestUser(testDataIds.userId);
     }
@@ -378,64 +349,71 @@ export async function cleanupOrphanedTestData(): Promise<void> {
   const prisma = getTestPrisma();
 
   try {
+    // Delete orphaned user badges first
+    await prisma.user_badges.deleteMany({
+      where: {
+        users_user_badges_user_idTousers: {
+          username: { startsWith: TEST_USERNAME_PREFIX },
+        },
+      },
+    }).catch(() => {});
+
+    // Delete orphaned comments
+    await prisma.comments.deleteMany({
+      where: {
+        OR: [
+          { content: { startsWith: TEST_PREFIX } },
+          { posts: { slug: { startsWith: TEST_SLUG_PREFIX } } },
+        ],
+      },
+    }).catch(() => {});
+
     // Delete orphaned posts by slug pattern
     const orphanedPosts = await prisma.posts.findMany({
       where: { slug: { startsWith: TEST_SLUG_PREFIX } },
       select: { id: true },
     });
     for (const post of orphanedPosts) {
-      await prisma.post_seo.deleteMany({ where: { post_id: post.id } });
-      await prisma.post_stats.deleteMany({ where: { post_id: post.id } });
-      await prisma.post_tags.deleteMany({ where: { post_id: post.id } });
-      await prisma.post_categories.deleteMany({ where: { post_id: post.id } });
-      await prisma.comments.deleteMany({ where: { post_id: post.id } });
+      await prisma.post_code_blocks.deleteMany({ where: { post_id: post.id } }).catch(() => {});
+      await prisma.post_seo.deleteMany({ where: { post_id: post.id } }).catch(() => {});
+      await prisma.post_stats.deleteMany({ where: { post_id: post.id } }).catch(() => {});
+      await prisma.post_tags.deleteMany({ where: { post_id: post.id } }).catch(() => {});
+      await prisma.post_categories.deleteMany({ where: { post_id: post.id } }).catch(() => {});
     }
     await prisma.posts.deleteMany({
       where: { slug: { startsWith: TEST_SLUG_PREFIX } },
-    });
+    }).catch(() => {});
 
     // Delete orphaned series
     await prisma.series.deleteMany({
       where: { slug: { startsWith: TEST_SLUG_PREFIX } },
-    });
+    }).catch(() => {});
 
     // Delete orphaned tags
     await prisma.tags.deleteMany({
       where: { slug: { startsWith: TEST_SLUG_PREFIX } },
-    });
+    }).catch(() => {});
 
     // Delete orphaned categories
     await prisma.categories.deleteMany({
       where: { slug: { startsWith: TEST_SLUG_PREFIX } },
-    });
+    }).catch(() => {});
 
     // Delete orphaned badges
     await prisma.badges.deleteMany({
       where: { type: { startsWith: TEST_SLUG_PREFIX } },
-    });
+    }).catch(() => {});
 
-    // Delete orphaned test users via Supabase
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SERVICE_ROLE_KEY;
-    if (supabaseUrl && serviceRoleKey) {
-      const listResponse = await fetch(
-        `${supabaseUrl}/auth/v1/admin/users`,
-        {
-          headers: {
-            Authorization: `Bearer ${serviceRoleKey}`,
-            apikey: serviceRoleKey,
-          },
-        }
-      );
-      if (listResponse.ok) {
-        const data = await listResponse.json();
-        for (const user of data.users || []) {
-          if (user.email?.startsWith(TEST_PREFIX)) {
-            await deleteTestUser(user.id);
-          }
-        }
-      }
-    }
+    // Delete orphaned public users
+    await prisma.public_users.deleteMany({
+      where: { username: { startsWith: TEST_USERNAME_PREFIX } },
+    }).catch(() => {});
+
+    // Delete orphaned auth users
+    await prisma.auth_users.deleteMany({
+      where: { email: { startsWith: TEST_PREFIX } },
+    }).catch(() => {});
+
   } catch (error) {
     console.warn("Warning during orphan cleanup:", error);
   }
