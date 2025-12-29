@@ -1,0 +1,29 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/lib/api-keys.ts",
+    "src/lib/prisma.ts",
+    "src/lib/supabase.ts",
+    "api/middleware/auth.ts",
+    "api/routes/sites.ts",
+    "api/routes/posts.ts",
+    "api/routes/users.ts",
+    "api/routes/api-keys.ts",
+    "api/routes/categories.ts",
+    "api/routes/tags.ts"
+  ],
+  "out": "docs",
+  "name": "Blog Server API Documentation",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "OpenAPI Docs": "/api/docs",
+    "API Health": "/api/health"
+  },
+  "plugin": ["typedoc-plugin-markdown"],
+  "theme": "default"
+}

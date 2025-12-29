@@ -6,7 +6,7 @@ import { Pool } from "pg";
 import { config } from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import { parse } from "yaml";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -64,7 +64,11 @@ app.get("/api", (_req, res) => {
   res.json({
     name: "Blog API",
     version: "1.0.0",
-    documentation: "/api/docs",
+    documentation: {
+      openapi: "/api/docs",
+      typedoc: "/api/typedoc",
+      spec: "/api/openapi.json",
+    },
   });
 });
 
@@ -79,9 +83,83 @@ app.get("/api/openapi.json", (_req, res) => {
   res.json(openapiSpec);
 });
 
-// Apply API key authentication to all /api routes (except health, info, and docs)
+// TypeDoc documentation directory
+const docsDir = join(__dirname, "..", "docs");
+
+// Serve TypeDoc-generated documentation (no auth required)
+app.get("/api/typedoc", (_req, res) => {
+  if (!existsSync(docsDir)) {
+    res.status(404).json({
+      error: "Documentation not generated",
+      message: "Run 'npm run docs' to generate TypeDoc documentation",
+    });
+    return;
+  }
+
+  // List available documentation files
+  const listFiles = (dir: string, basePath = ""): string[] => {
+    const files: string[] = [];
+    for (const file of readdirSync(dir)) {
+      const filePath = join(dir, file);
+      const relativePath = basePath ? `${basePath}/${file}` : file;
+      if (statSync(filePath).isDirectory()) {
+        files.push(...listFiles(filePath, relativePath));
+      } else if (file.endsWith(".html") || file.endsWith(".md")) {
+        files.push(relativePath);
+      }
+    }
+    return files;
+  };
+
+  const files = listFiles(docsDir);
+  res.json({
+    message: "TypeDoc documentation available",
+    baseUrl: "/api/typedoc/",
+    files,
+  });
+});
+
+// Serve individual TypeDoc files
+app.get("/api/typedoc/*", (req, res) => {
+  if (!existsSync(docsDir)) {
+    res.status(404).json({
+      error: "Documentation not generated",
+      message: "Run 'npm run docs' to generate TypeDoc documentation",
+    });
+    return;
+  }
+
+  // Extract the path from the wildcard parameter
+  const requestedPath = (req.params as Record<string, string>)[0] || "index.html";
+  const filePath = join(docsDir, requestedPath);
+
+  if (!existsSync(filePath) || !filePath.startsWith(docsDir)) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+
+  if (statSync(filePath).isDirectory()) {
+    const indexPath = join(filePath, "index.html");
+    if (existsSync(indexPath)) {
+      res.sendFile(indexPath);
+      return;
+    }
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+
+  res.sendFile(filePath);
+});
+
+// Apply API key authentication to all /api routes (except health, info, docs, and typedoc)
 app.use("/api", (req, res, next) => {
-  if (req.path === "/health" || req.path === "/" || req.path.startsWith("/docs") || req.path === "/openapi.json") {
+  if (
+    req.path === "/health" ||
+    req.path === "/" ||
+    req.path.startsWith("/docs") ||
+    req.path === "/openapi.json" ||
+    req.path.startsWith("/typedoc")
+  ) {
     return next();
   }
   return authenticateApiKey(prisma)(req, res, next);
@@ -115,7 +193,8 @@ const PORT = process.env.API_PORT || 3001;
 const server = app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
-  console.log(`API Documentation: http://localhost:${PORT}/api/docs`);
+  console.log(`OpenAPI Documentation: http://localhost:${PORT}/api/docs`);
+  console.log(`TypeDoc Documentation: http://localhost:${PORT}/api/typedoc`);
 });
 
 // Graceful shutdown

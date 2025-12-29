@@ -1,3 +1,29 @@
+/**
+ * @module categories
+ * @description Category management routes for the Blog Server API.
+ *
+ * This module provides RESTful endpoints for managing post categories:
+ * - List categories for a site
+ * - Create new categories
+ * - Update existing categories
+ * - Delete categories
+ *
+ * ## Features
+ *
+ * - **Hierarchical**: Categories support parent-child relationships
+ * - **Site-scoped**: Categories belong to a specific site
+ * - **Post counts**: Category listings include post counts
+ *
+ * ## Endpoints
+ *
+ * | Method | Path | Description |
+ * |--------|------|-------------|
+ * | GET | /api/sites/:siteId/categories | List site categories |
+ * | POST | /api/sites/:siteId/categories | Create category |
+ * | PATCH | /api/categories/:categoryId | Update category |
+ * | DELETE | /api/categories/:categoryId | Delete category |
+ */
+
 import { Router, type Request, type Response } from "express";
 import { requireScope, requireSiteAccess } from "../middleware/auth";
 

@@ -1,3 +1,29 @@
+/**
+ * @module tags
+ * @description Tag management routes for the Blog Server API.
+ *
+ * This module provides RESTful endpoints for managing post tags:
+ * - List tags for a site
+ * - Create new tags
+ * - Update existing tags
+ * - Delete tags
+ *
+ * ## Features
+ *
+ * - **Site-scoped**: Tags belong to a specific site
+ * - **Post counts**: Tag listings include post counts
+ * - **Unique slugs**: Tag slugs must be unique within a site
+ *
+ * ## Endpoints
+ *
+ * | Method | Path | Description |
+ * |--------|------|-------------|
+ * | GET | /api/sites/:siteId/tags | List site tags |
+ * | POST | /api/sites/:siteId/tags | Create tag |
+ * | PATCH | /api/tags/:tagId | Update tag |
+ * | DELETE | /api/tags/:tagId | Delete tag |
+ */
+
 import { Router, type Request, type Response } from "express";
 import { requireScope, requireSiteAccess } from "../middleware/auth";
 

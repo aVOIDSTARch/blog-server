@@ -11,7 +11,9 @@
     "start:api": "tsx api/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:init": "tsx scripts/init-db.ts"
+    "db:init": "tsx scripts/init-db.ts",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -21,6 +23,8 @@
     "@types/swagger-ui-express": "^4.1.8",
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",
+    "typedoc": "^0.28.15",
+    "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vite-plugin-solid": "^2.11.10",

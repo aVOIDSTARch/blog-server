@@ -1,3 +1,33 @@
+/**
+ * @module auth
+ * @description Authentication and authorization middleware for the Blog Server API.
+ *
+ * This module provides Express middleware for:
+ * - API key authentication
+ * - Scope-based authorization
+ * - Site-level access control
+ * - Admin-only routes
+ * - Usage tracking
+ *
+ * ## Usage
+ *
+ * ```typescript
+ * import { authenticateApiKey, requireScope, requireSiteAccess, requireAdmin } from './middleware/auth';
+ *
+ * // Apply authentication to all API routes
+ * app.use('/api', authenticateApiKey(prisma));
+ *
+ * // Require specific scopes
+ * router.post('/resource', requireScope('write'), handler);
+ *
+ * // Require site access
+ * router.get('/sites/:siteId/posts', requireSiteAccess('read'), handler);
+ *
+ * // Admin only
+ * router.delete('/users/:id', requireAdmin, handler);
+ * ```
+ */
+
 import type { Request, Response, NextFunction } from "express";
 import type { PrismaClient } from "@prisma/client";
 import {
@@ -11,19 +41,30 @@ import {
 } from "../../src/lib/api-keys";
 import type { api_key_scope } from "@prisma/client";
 
-// Extend Express Request to include API key info
+/**
+ * Extends Express Request interface to include API key and Prisma client.
+ */
 declare global {
   namespace Express {
     interface Request {
+      /** The validated API key for the current request */
       apiKey?: ValidatedApiKey;
+      /** The Prisma client instance for database operations */
       prisma: PrismaClient;
     }
   }
 }
 
 /**
- * Extract API key from request headers
- * Supports: Authorization: Bearer <key> or X-API-Key: <key>
+ * Extracts API key from request headers.
+ *
+ * Supports two formats:
+ * - `Authorization: Bearer <key>`
+ * - `X-API-Key: <key>`
+ *
+ * @param req - The Express request object
+ * @returns The extracted API key, or null if not found
+ * @internal
  */
 function extractApiKey(req: Request): string | null {
   const authHeader = req.headers.authorization;
@@ -40,7 +81,13 @@ function extractApiKey(req: Request): string | null {
 }
 
 /**
- * Get client IP address
+ * Extracts the client IP address from the request.
+ *
+ * Checks `X-Forwarded-For` header for proxied requests.
+ *
+ * @param req - The Express request object
+ * @returns The client IP address
+ * @internal
  */
 function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
@@ -51,7 +98,22 @@ function getClientIp(req: Request): string {
 }
 
 /**
- * Middleware to authenticate API key
+ * Creates middleware to authenticate requests using API keys.
+ *
+ * This middleware:
+ * 1. Extracts the API key from headers
+ * 2. Validates the key against the database
+ * 3. Checks IP and origin restrictions
+ * 4. Attaches the validated key to `req.apiKey`
+ * 5. Records usage after the response is sent
+ *
+ * @param prisma - The Prisma client instance
+ * @returns Express middleware function
+ *
+ * @example
+ * ```typescript
+ * app.use('/api', authenticateApiKey(prisma));
+ * ```
  */
 export function authenticateApiKey(
   prisma: PrismaClient
@@ -119,7 +181,21 @@ export function authenticateApiKey(
 }
 
 /**
- * Middleware to require specific scope(s)
+ * Creates middleware to require specific permission scope(s).
+ *
+ * The request is rejected with 403 if the API key lacks the required scope.
+ *
+ * @param requiredScopes - One or more scopes required (any one is sufficient)
+ * @returns Express middleware function
+ *
+ * @example
+ * ```typescript
+ * // Require write scope
+ * router.post('/posts', requireScope('write'), createPost);
+ *
+ * // Require either delete or admin scope
+ * router.delete('/posts/:id', requireScope('delete', 'admin'), deletePost);
+ * ```
  */
 export function requireScope(
   ...requiredScopes: api_key_scope[]
@@ -150,8 +226,19 @@ export function requireScope(
 }
 
 /**
- * Middleware to require site access
- * Extracts site_id from params or body
+ * Creates middleware to require access to a specific site.
+ *
+ * Extracts site ID from `req.params.siteId` or `req.body.site_id`.
+ * Rejects with 403 if the API key lacks access to the site.
+ *
+ * @param requiredScope - The scope level required for access
+ * @returns Express middleware function
+ *
+ * @example
+ * ```typescript
+ * router.get('/sites/:siteId/posts', requireSiteAccess('read'), listPosts);
+ * router.post('/sites/:siteId/posts', requireSiteAccess('write'), createPost);
+ * ```
  */
 export function requireSiteAccess(
   requiredScope: api_key_scope
@@ -194,7 +281,18 @@ export function requireSiteAccess(
 }
 
 /**
- * Middleware to require admin key type
+ * Middleware to require admin API key type.
+ *
+ * Rejects with 403 if the API key is not an admin key.
+ *
+ * @param req - Express request object
+ * @param res - Express response object
+ * @param next - Express next function
+ *
+ * @example
+ * ```typescript
+ * router.delete('/users/:id', requireAdmin, deleteUser);
+ * ```
  */
 export function requireAdmin(
   req: Request,
