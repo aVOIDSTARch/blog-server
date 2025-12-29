@@ -1,8 +1,43 @@
 {
-  "name": "blog-server",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@casinelli/blog-server",
+  "version": "1.0.0",
   "type": "module",
+  "description": "A RESTful API server for managing multi-tenant blog sites with Express, Prisma, and PostgreSQL",
+  "author": "Louis Casinelli",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/casinelli/blog-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/casinelli/blog-server/issues"
+  },
+  "homepage": "https://github.com/casinelli/blog-server#readme",
+  "keywords": [
+    "blog",
+    "api",
+    "express",
+    "prisma",
+    "postgresql",
+    "multi-tenant",
+    "rest",
+    "cms"
+  ],
+  "main": "api/server.ts",
+  "bin": {
+    "blog-server": "./bin/cli.js"
+  },
+  "files": [
+    "api",
+    "src",
+    "prisma",
+    "bin",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "dev:api": "tsx watch api/server.ts",
