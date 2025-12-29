@@ -119,8 +119,8 @@ app.get("/api/typedoc", (_req, res) => {
   });
 });
 
-// Serve individual TypeDoc files
-app.get("/api/typedoc/*", (req, res) => {
+// Serve individual TypeDoc files (using Express 5 named wildcard syntax)
+app.get("/api/typedoc/{*filepath}", (req, res) => {
   if (!existsSync(docsDir)) {
     res.status(404).json({
       error: "Documentation not generated",
@@ -130,7 +130,7 @@ app.get("/api/typedoc/*", (req, res) => {
   }
 
   // Extract the path from the wildcard parameter
-  const requestedPath = (req.params as Record<string, string>)[0] || "index.html";
+  const requestedPath = (req.params as { filepath: string }).filepath || "index.html";
   const filePath = join(docsDir, requestedPath);
 
   if (!existsSync(filePath) || !filePath.startsWith(docsDir)) {

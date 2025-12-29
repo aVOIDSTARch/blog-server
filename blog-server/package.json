@@ -48,7 +48,8 @@
     "test:watch": "vitest",
     "db:init": "tsx scripts/init-db.ts",
     "docs": "typedoc",
-    "docs:watch": "typedoc --watch"
+    "docs:watch": "typedoc --watch",
+    "postinstall": "prisma generate"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
