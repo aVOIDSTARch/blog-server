@@ -1,0 +1,1731 @@
+openapi: 3.0.3
+info:
+  title: Blog API
+  description: |
+    RESTful API for multi-tenant blog platform.
+
+    ## Authentication
+
+    All endpoints (except `/api/health`) require API key authentication.
+
+    Include your API key in one of these headers:
+    - `Authorization: Bearer <your-api-key>`
+    - `X-API-Key: <your-api-key>`
+
+    ## API Key Types
+
+    - **Admin keys** (`sa_`): Full access to all resources
+    - **User keys** (`sk_`): Access to owned/member sites
+    - **Site keys** (`ss_`): Access limited to specific site
+
+    ## Scopes
+
+    - `read`: Read-only access
+    - `write`: Create and update resources
+    - `delete`: Delete resources
+    - `admin`: Full administrative access
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3001
+    description: Development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Sites
+    description: Site management
+  - name: Posts
+    description: Blog post management
+  - name: Categories
+    description: Category management
+  - name: Tags
+    description: Tag management
+  - name: Users
+    description: User management
+  - name: API Keys
+    description: API key management
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key as Bearer token
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key in X-API-Key header
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Error details
+      required:
+        - error
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        domain:
+          type: string
+          nullable: true
+        subdomain:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        tagline:
+          type: string
+          nullable: true
+        logo_url:
+          type: string
+          nullable: true
+        favicon_url:
+          type: string
+          nullable: true
+        owner_id:
+          type: string
+          format: uuid
+        settings:
+          type: object
+        is_active:
+          type: boolean
+        is_public:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SiteCreate:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+        domain:
+          type: string
+        subdomain:
+          type: string
+        description:
+          type: string
+        tagline:
+          type: string
+        settings:
+          type: object
+        owner_id:
+          type: string
+          format: uuid
+          description: Only for admin keys
+
+    SiteUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        domain:
+          type: string
+        subdomain:
+          type: string
+        description:
+          type: string
+        tagline:
+          type: string
+        settings:
+          type: object
+        is_active:
+          type: boolean
+        is_public:
+          type: boolean
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        excerpt:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        content_format:
+          type: string
+          enum: [markdown, html, plaintext]
+        status:
+          type: string
+          enum: [draft, published, archived, scheduled]
+        featured_image_url:
+          type: string
+          nullable: true
+        author_id:
+          type: string
+          format: uuid
+        site_id:
+          type: string
+          format: uuid
+        series_id:
+          type: string
+          format: uuid
+          nullable: true
+        series_part:
+          type: integer
+          nullable: true
+        word_count:
+          type: integer
+        reading_time_minutes:
+          type: integer
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PostCreate:
+      type: object
+      required:
+        - title
+        - slug
+      properties:
+        title:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+        description:
+          type: string
+        excerpt:
+          type: string
+        content:
+          type: string
+        content_format:
+          type: string
+          enum: [markdown, html, plaintext]
+          default: markdown
+        status:
+          type: string
+          enum: [draft, published, archived, scheduled]
+          default: draft
+        featured_image_url:
+          type: string
+        author_id:
+          type: string
+          format: uuid
+          description: Only for admin keys
+        series_id:
+          type: string
+          format: uuid
+        series_part:
+          type: integer
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        seo:
+          $ref: '#/components/schemas/PostSEO'
+
+    PostUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        excerpt:
+          type: string
+        content:
+          type: string
+        content_format:
+          type: string
+          enum: [markdown, html, plaintext]
+        status:
+          type: string
+          enum: [draft, published, archived, scheduled]
+        featured_image_url:
+          type: string
+        series_id:
+          type: string
+          format: uuid
+        series_part:
+          type: integer
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        seo:
+          $ref: '#/components/schemas/PostSEO'
+
+    PostSEO:
+      type: object
+      properties:
+        meta_title:
+          type: string
+        meta_description:
+          type: string
+        focus_keyword:
+          type: string
+        canonical_url:
+          type: string
+        og_title:
+          type: string
+        og_description:
+          type: string
+        og_image:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        site_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CategoryCreate:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+        description:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        site_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TagCreate:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+        description:
+          type: string
+        color:
+          type: string
+          pattern: '^#[0-9a-fA-F]{6}$'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+          nullable: true
+        display_name:
+          type: string
+        email:
+          type: string
+          format: email
+        avatar_url:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        is_verified:
+          type: boolean
+        is_moderator:
+          type: boolean
+        is_admin:
+          type: boolean
+        reputation:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+        bio:
+          type: string
+        website:
+          type: string
+        is_verified:
+          type: boolean
+          description: Admin only
+        is_moderator:
+          type: boolean
+          description: Admin only
+        is_admin:
+          type: boolean
+          description: Admin only
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        key_prefix:
+          type: string
+          description: First characters of key for identification
+        key_type:
+          type: string
+          enum: [user, site, admin]
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        site_id:
+          type: string
+          format: uuid
+          nullable: true
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [read, write, delete, admin]
+        rate_limit_per_minute:
+          type: integer
+        rate_limit_per_day:
+          type: integer
+        is_active:
+          type: boolean
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        usage_count:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ApiKeyCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        key_type:
+          type: string
+          enum: [user, site, admin]
+          default: user
+        user_id:
+          type: string
+          format: uuid
+          description: Required for admin keys creating user/site keys
+        site_id:
+          type: string
+          format: uuid
+          description: Required for site keys
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [read, write, delete, admin]
+          default: [read]
+        rate_limit_per_minute:
+          type: integer
+          default: 60
+        rate_limit_per_day:
+          type: integer
+          default: 10000
+        expires_at:
+          type: string
+          format: date-time
+        allowed_ips:
+          type: array
+          items:
+            type: string
+        allowed_origins:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    ApiKeyCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          description: Full API key - only shown once at creation
+        key_prefix:
+          type: string
+        name:
+          type: string
+        key_type:
+          type: string
+          enum: [user, site, admin]
+
+    ApiKeyUsageStats:
+      type: object
+      properties:
+        totalRequests:
+          type: integer
+        successfulRequests:
+          type: integer
+        failedRequests:
+          type: integer
+        avgResponseTime:
+          type: number
+        topEndpoints:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint:
+                type: string
+              count:
+                type: integer
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /api/health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api:
+    get:
+      tags:
+        - Health
+      summary: API information
+      description: Get API version and documentation links
+      security: []
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                  documentation:
+                    type: string
+
+  # Sites
+  /api/sites:
+    get:
+      tags:
+        - Sites
+      summary: List sites
+      description: List all sites accessible to the current API key
+      responses:
+        '200':
+          description: List of sites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Site'
+                  count:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Sites
+      summary: Create site
+      description: Create a new site
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteCreate'
+      responses:
+        '201':
+          description: Site created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Site'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - slug or domain already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/sites/{siteId}:
+    parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Sites
+      summary: Get site
+      description: Get a specific site by ID
+      responses:
+        '200':
+          description: Site details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Site'
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Sites
+      summary: Update site
+      description: Update a site
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteUpdate'
+      responses:
+        '200':
+          description: Site updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Site'
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Sites
+      summary: Delete site
+      description: Delete a site (admin only)
+      responses:
+        '204':
+          description: Site deleted
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/sites/{siteId}/stats:
+    parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Sites
+      summary: Get site statistics
+      description: Get post and content statistics for a site
+      responses:
+        '200':
+          description: Site statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      posts:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          published:
+                            type: integer
+                          draft:
+                            type: integer
+                      categories:
+                        type: integer
+                      tags:
+                        type: integer
+                      members:
+                        type: integer
+
+  # Posts
+  /api/sites/{siteId}/posts:
+    parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Posts
+      summary: List posts
+      description: List all posts for a site with filtering and pagination
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived, scheduled]
+        - name: author_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: tag_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: created_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Posts
+      summary: Create post
+      description: Create a new post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostCreate'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Post'
+        '409':
+          description: Conflict - slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/posts/{postId}:
+    parameters:
+      - name: postId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Posts
+      summary: Get post
+      description: Get a specific post by ID
+      responses:
+        '200':
+          description: Post details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Post'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Posts
+      summary: Update post
+      description: Update a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostUpdate'
+      responses:
+        '200':
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Post'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Posts
+      summary: Delete post
+      description: Delete a post (requires delete scope)
+      responses:
+        '204':
+          description: Post deleted
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Categories
+  /api/sites/{siteId}/categories:
+    parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Categories
+      summary: List categories
+      description: List all categories for a site
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                  count:
+                    type: integer
+
+    post:
+      tags:
+        - Categories
+      summary: Create category
+      description: Create a new category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreate'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+        '409':
+          description: Conflict - slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/categories/{categoryId}:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags:
+        - Categories
+      summary: Update category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreate'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+
+    delete:
+      tags:
+        - Categories
+      summary: Delete category
+      responses:
+        '204':
+          description: Category deleted
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Tags
+  /api/sites/{siteId}/tags:
+    parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Tags
+      summary: List tags
+      description: List all tags for a site
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+                  count:
+                    type: integer
+
+    post:
+      tags:
+        - Tags
+      summary: Create tag
+      description: Create a new tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Tag'
+        '409':
+          description: Conflict - slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/tags/{tagId}:
+    parameters:
+      - name: tagId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags:
+        - Tags
+      summary: Update tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '200':
+          description: Tag updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Tag'
+
+    delete:
+      tags:
+        - Tags
+      summary: Delete tag
+      responses:
+        '204':
+          description: Tag deleted
+        '404':
+          description: Tag not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Users
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      description: List all users (admin only)
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: is_admin
+          in: query
+          schema:
+            type: boolean
+        - name: is_verified
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user
+      description: Get the user associated with the current API key
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request - admin keys don't have associated users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Users
+      summary: Get user
+      description: Get a specific user (users can only view their own profile unless admin)
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Users
+      summary: Update user
+      description: Update a user profile (users can only update their own profile unless admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete a user (admin only)
+      responses:
+        '204':
+          description: User deleted
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/{userId}/sites:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Users
+      summary: Get user's sites
+      description: Get sites owned or accessible by user
+      responses:
+        '200':
+          description: User's sites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Site'
+                        - type: object
+                          properties:
+                            role:
+                              type: string
+                              enum: [owner, admin, editor, author, contributor]
+
+  # API Keys
+  /api/api-keys:
+    get:
+      tags:
+        - API Keys
+      summary: List API keys
+      description: List API keys (users see their own, admins can see all)
+      parameters:
+        - name: user_id
+          in: query
+          description: Filter by user (admin only)
+          schema:
+            type: string
+            format: uuid
+        - name: key_type
+          in: query
+          schema:
+            type: string
+            enum: [user, site, admin]
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+                  count:
+                    type: integer
+
+    post:
+      tags:
+        - API Keys
+      summary: Create API key
+      description: |
+        Create a new API key. The full key is only returned once at creation.
+
+        - Users can create user keys for themselves
+        - Users can create site keys for sites they own
+        - Only admin keys can create admin keys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreate'
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApiKeyCreated'
+                  message:
+                    type: string
+                    example: Save this API key securely - it will not be shown again
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/api-keys/{keyId}:
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - API Keys
+      summary: Get API key
+      description: Get details of a specific API key
+      responses:
+        '200':
+          description: API key details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApiKey'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - API Keys
+      summary: Update API key
+      description: Update API key metadata (cannot change type or scopes)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                rate_limit_per_minute:
+                  type: integer
+                rate_limit_per_day:
+                  type: integer
+                allowed_ips:
+                  type: array
+                  items:
+                    type: string
+                allowed_origins:
+                  type: array
+                  items:
+                    type: string
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: API key updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApiKey'
+
+  /api/api-keys/{keyId}/revoke:
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags:
+        - API Keys
+      summary: Revoke API key
+      description: Revoke an API key (cannot be undone)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for revocation
+      responses:
+        '200':
+          description: API key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/api-keys/{keyId}/usage:
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - API Keys
+      summary: Get API key usage
+      description: Get usage statistics for an API key
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApiKeyUsageStats'
+
+  /api/api-keys/{keyId}/site-access:
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags:
+        - API Keys
+      summary: Grant site access
+      description: Grant an API key access to a specific site
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - site_id
+                - scopes
+              properties:
+                site_id:
+                  type: string
+                  format: uuid
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [read, write, delete]
+      responses:
+        '200':
+          description: Site access granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/api-keys/{keyId}/site-access/{siteId}:
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      tags:
+        - API Keys
+      summary: Revoke site access
+      description: Revoke an API key's access to a specific site
+      responses:
+        '200':
+          description: Site access revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
