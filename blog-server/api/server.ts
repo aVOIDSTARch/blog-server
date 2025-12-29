@@ -4,9 +4,21 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { config } from "dotenv";
+import swaggerUi from "swagger-ui-express";
+import { parse } from "yaml";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
 // Import middleware
 import { authenticateApiKey } from "./middleware/auth";
+
+// Load OpenAPI specification
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const openapiSpec = parse(
+  readFileSync(join(__dirname, "openapi.yaml"), "utf-8")
+);
 
 // Import routes
 import sitesRouter from "./routes/sites";
@@ -56,9 +68,20 @@ app.get("/api", (_req, res) => {
   });
 });
 
-// Apply API key authentication to all /api routes (except health and info)
+// Swagger UI documentation (no auth required)
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "Blog API Documentation",
+}));
+
+// Serve OpenAPI spec as JSON (no auth required)
+app.get("/api/openapi.json", (_req, res) => {
+  res.json(openapiSpec);
+});
+
+// Apply API key authentication to all /api routes (except health, info, and docs)
 app.use("/api", (req, res, next) => {
-  if (req.path === "/health" || req.path === "/") {
+  if (req.path === "/health" || req.path === "/" || req.path.startsWith("/docs") || req.path === "/openapi.json") {
     return next();
   }
   return authenticateApiKey(prisma)(req, res, next);
@@ -72,8 +95,8 @@ app.use("/api/api-keys", apiKeysRouter);
 app.use("/api", categoriesRouter); // Has /sites/:siteId/categories and /categories/:categoryId
 app.use("/api", tagsRouter); // Has /sites/:siteId/tags and /tags/:tagId
 
-// 404 handler
-app.use("/api/*", (_req, res) => {
+// 404 handler for API routes
+app.use("/api/{*splat}", (_req, res) => {
   res.status(404).json({ error: "Not Found" });
 });
 
@@ -92,6 +115,7 @@ const PORT = process.env.API_PORT || 3001;
 const server = app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`API Documentation: http://localhost:${PORT}/api/docs`);
 });
 
 // Graceful shutdown
