@@ -1,0 +1,39 @@
+# Development
+.env
+.env.local
+.env.*.local
+
+# Tests
+tests/
+*.test.ts
+vitest.config.ts
+
+# Build artifacts
+dist/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeDoc config (docs are included)
+typedoc.json
+
+# Vite (frontend)
+vite.config.ts
+index.html
+public/
+
+# Git
+.git/
+.gitignore

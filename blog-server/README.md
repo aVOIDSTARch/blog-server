@@ -1,4 +1,7 @@
-# Blog Server API
+# @casinelli/blog-server
+
+[![npm version](https://badge.fury.io/js/%40casinelli%2Fblog-server.svg)](https://www.npmjs.com/package/@casinelli/blog-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A RESTful API server for managing multi-tenant blog sites, built with Express, Prisma, and PostgreSQL.
 
@@ -11,17 +14,49 @@ A RESTful API server for managing multi-tenant blog sites, built with Express, P
 - OpenAPI documentation with Swagger UI
 - TypeDoc code documentation
 
+## Installation
+
+```bash
+npm install @casinelli/blog-server
+```
+
+Or install globally to use the CLI:
+
+```bash
+npm install -g @casinelli/blog-server
+```
+
 ## Prerequisites
 
 - Node.js 18+
 - PostgreSQL database
 - Supabase project (for authentication)
 
-## Setup
+## Quick Start
 
-### 1. Install dependencies
+### 1. Set environment variables
 
 ```bash
+export DATABASE_URL=postgresql://user:password@localhost:5432/blog_db
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_ANON_KEY=your-anon-key
+```
+
+### 2. Run the server
+
+```bash
+blog-server
+```
+
+The API will be available at http://localhost:3001
+
+## Setup (Development)
+
+### 1. Clone and install dependencies
+
+```bash
+git clone https://github.com/casinelli/blog-server.git
+cd blog-server
 npm install
 ```
 
