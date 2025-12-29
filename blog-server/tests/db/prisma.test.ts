@@ -91,8 +91,12 @@ describe("Database Connection & Setup", () => {
     });
 
     it("should find category by slug", async () => {
-      const category = await prisma.categories.findUnique({
-        where: { slug: `${TEST_SLUG_PREFIX}category` },
+      // Slug is unique per site, so use findFirst with site_id filter
+      const category = await prisma.categories.findFirst({
+        where: {
+          slug: `${TEST_SLUG_PREFIX}category`,
+          site_id: testDataIds.siteId,
+        },
       });
       expect(category).toBeDefined();
       expect(category?.id).toBe(testDataIds.categoryId);
@@ -129,8 +133,12 @@ describe("Database Connection & Setup", () => {
     });
 
     it("should find tag by slug", async () => {
-      const tag = await prisma.tags.findUnique({
-        where: { slug: `${TEST_SLUG_PREFIX}tag1` },
+      // Slug is unique per site, so use findFirst with site_id filter
+      const tag = await prisma.tags.findFirst({
+        where: {
+          slug: `${TEST_SLUG_PREFIX}tag1`,
+          site_id: testDataIds.siteId,
+        },
       });
       expect(tag).toBeDefined();
       expect(tag?.name).toBe(`${TEST_PREFIX}_Tag1`);
@@ -184,8 +192,12 @@ describe("Database Connection & Setup", () => {
     });
 
     it("should find post by slug", async () => {
-      const post = await prisma.posts.findUnique({
-        where: { slug: `${TEST_SLUG_PREFIX}post` },
+      // Slug is unique per site, so use findFirst with site_id filter
+      const post = await prisma.posts.findFirst({
+        where: {
+          slug: `${TEST_SLUG_PREFIX}post`,
+          site_id: testDataIds.siteId,
+        },
       });
       expect(post).toBeDefined();
       expect(post?.id).toBe(testDataIds.postId);
@@ -436,13 +448,15 @@ describe("Database Connection & Setup", () => {
             data: {
               name: `${TEST_PREFIX}_TransactionTag`,
               slug: `${TEST_SLUG_PREFIX}transactiontag`,
+              site_id: testDataIds.siteId,
             },
           });
-          // Force an error by creating duplicate slug
+          // Force an error by creating duplicate slug within same site
           await tx.tags.create({
             data: {
               name: `${TEST_PREFIX}_TransactionTag2`,
               slug: `${TEST_SLUG_PREFIX}transactiontag`,
+              site_id: testDataIds.siteId,
             },
           });
         });
@@ -453,8 +467,11 @@ describe("Database Connection & Setup", () => {
       expect(error).toBeDefined();
 
       // Verify rollback - tag should not exist
-      const tag = await prisma.tags.findUnique({
-        where: { slug: `${TEST_SLUG_PREFIX}transactiontag` },
+      const tag = await prisma.tags.findFirst({
+        where: {
+          slug: `${TEST_SLUG_PREFIX}transactiontag`,
+          site_id: testDataIds.siteId,
+        },
       });
       expect(tag).toBeNull();
     });

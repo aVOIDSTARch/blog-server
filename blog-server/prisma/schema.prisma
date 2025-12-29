@@ -429,18 +429,21 @@ model badges {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model categories {
   id               String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name             String            @unique
-  slug             String            @unique
+  name             String
+  slug             String
   description      String?
   parent_id        String?           @db.Uuid
   sort_order       Int?              @default(0)
   created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  site_id          String?           @db.Uuid
   categories       categories?       @relation("categoriesTocategories", fields: [parent_id], references: [id], onUpdate: NoAction)
   other_categories categories[]      @relation("categoriesTocategories")
+  sites            sites?            @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   post_categories  post_categories[]
 
   @@index([parent_id], map: "idx_categories_parent_id")
   @@index([slug], map: "idx_categories_slug")
+  @@index([site_id], map: "idx_categories_site_id")
   @@schema("public")
 }
 
@@ -684,7 +687,9 @@ model images {
   blurhash         String?
   uploaded_by      String?            @db.Uuid
   created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  site_id          String?            @db.Uuid
   image_thumbnails image_thumbnails[]
+  sites            sites?             @relation(fields: [site_id], references: [id], onUpdate: NoAction)
   users            public_users?      @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
   post_images      post_images[]
   posts            posts[]
@@ -1031,7 +1036,7 @@ model post_views {
 model posts {
   id                                                            String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   title                                                         String
-  slug                                                          String                 @unique
+  slug                                                          String
   subtitle                                                      String?
   description                                                   String?
   excerpt                                                       String?
@@ -1055,6 +1060,7 @@ model posts {
   featured_order                                                Int?
   revision                                                      Int?                   @default(1)
   custom_fields                                                 Json?                  @default("{}")
+  site_id                                                       String?                @db.Uuid
   comments                                                      comments[]
   post_attachments                                              post_attachments[]
   post_bookmarks                                                post_bookmarks[]
@@ -1083,6 +1089,7 @@ model posts {
   users                                                         public_users           @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   images                                                        images?                @relation(fields: [featured_image_id], references: [id], onUpdate: NoAction)
   series                                                        series?                @relation(fields: [series_id], references: [id], onUpdate: NoAction)
+  sites                                                         sites?                 @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   related_posts_related_posts_post_idToposts                    related_posts[]        @relation("related_posts_post_idToposts")
   related_posts_related_posts_related_post_idToposts            related_posts[]        @relation("related_posts_related_post_idToposts")
 
@@ -1094,6 +1101,7 @@ model posts {
   @@index([slug], map: "idx_posts_slug")
   @@index([status], map: "idx_posts_status")
   @@index([visibility], map: "idx_posts_visibility")
+  @@index([site_id], map: "idx_posts_site_id")
   @@schema("public")
 }
 
@@ -1117,17 +1125,70 @@ model related_posts {
 model series {
   id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name        String
-  slug        String       @unique
+  slug        String
   description String?
   total_parts Int?         @default(1)
   author_id   String       @db.Uuid
   created_at  DateTime     @default(now()) @db.Timestamptz(6)
   updated_at  DateTime     @default(now()) @db.Timestamptz(6)
+  site_id     String?      @db.Uuid
   posts       posts[]
   users       public_users @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sites       sites?       @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([author_id], map: "idx_series_author_id")
   @@index([slug], map: "idx_series_slug")
+  @@index([site_id], map: "idx_series_site_id")
+  @@schema("public")
+}
+
+/// Multi-site support - allows multiple blogs to share the same database
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sites {
+  id           String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String
+  slug         String         @unique
+  domain       String?        @unique
+  subdomain    String?        @unique
+  description  String?
+  tagline      String?
+  logo_url     String?
+  favicon_url  String?
+  owner_id     String         @db.Uuid
+  settings     Json?          @default("{\"theme\": \"default\", \"locale\": \"en\", \"timezone\": \"UTC\", \"comments_enabled\": true, \"allow_anonymous_comments\": false, \"require_comment_approval\": false}")
+  is_active    Boolean?       @default(true)
+  is_public    Boolean?       @default(true)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  categories   categories[]
+  images       images[]
+  posts        posts[]
+  series       series[]
+  site_members site_members[]
+  owner        public_users   @relation(fields: [owner_id], references: [id], onUpdate: NoAction)
+  tags         tags[]
+  api_keys     api_keys[]
+  api_key_site_access api_key_site_access[]
+
+  @@index([owner_id], map: "idx_sites_owner_id")
+  @@index([slug], map: "idx_sites_slug")
+  @@schema("public")
+}
+
+/// Site members - users who can contribute to a site
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model site_members {
+  id        String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  site_id   String       @db.Uuid
+  user_id   String       @db.Uuid
+  role      site_role    @default(contributor)
+  joined_at DateTime     @default(now()) @db.Timestamptz(6)
+  sites     sites        @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users     public_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([site_id, user_id])
+  @@index([site_id], map: "idx_site_members_site_id")
+  @@index([user_id], map: "idx_site_members_user_id")
   @@schema("public")
 }
 
@@ -1135,15 +1196,18 @@ model series {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model tags {
   id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name        String      @unique
-  slug        String      @unique
+  name        String
+  slug        String
   description String?
   post_count  Int?        @default(0)
   created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  site_id     String?     @db.Uuid
   post_tags   post_tags[]
+  sites       sites?      @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([post_count(sort: Desc)], map: "idx_tags_post_count")
   @@index([slug], map: "idx_tags_slug")
+  @@index([site_id], map: "idx_tags_site_id")
   @@schema("public")
 }
 
@@ -1210,9 +1274,13 @@ model public_users {
   post_views                                post_views[]
   posts                                     posts[]
   series                                    series[]
+  site_memberships                          site_members[]
+  owned_sites                               sites[]
   user_badges_user_badges_awarded_byTousers user_badges[]                @relation("user_badges_awarded_byTousers")
   user_badges_user_badges_user_idTousers    user_badges[]                @relation("user_badges_user_idTousers")
   user_social_links                         user_social_links[]
+  api_keys                                  api_keys[]                   @relation("api_keys_user")
+  api_keys_revoked                          api_keys[]                   @relation("api_keys_revoker")
   users                                     auth_users                   @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([created_at], map: "idx_users_created_at")
@@ -1384,5 +1452,119 @@ enum post_visibility {
   members_only
   paid
 
+  @@schema("public")
+}
+
+enum site_role {
+  owner
+  admin
+  editor
+  author
+  contributor
+
+  @@schema("public")
+}
+
+enum api_key_scope {
+  read
+  write
+  delete
+  admin
+
+  @@schema("public")
+}
+
+enum api_key_type {
+  user
+  site
+  admin
+
+  @@schema("public")
+}
+
+/// API Keys for blog API access
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model api_keys {
+  id                   String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                 String
+  description          String?
+  key_prefix           String
+  key_hash             String
+  key_type             api_key_type        @default(user)
+  user_id              String?             @db.Uuid
+  site_id              String?             @db.Uuid
+  scopes               api_key_scope[]     @default([read])
+  rate_limit_per_minute Int?               @default(60)
+  rate_limit_per_day   Int?                @default(10000)
+  last_used_at         DateTime?           @db.Timestamptz(6)
+  usage_count          BigInt?             @default(0)
+  is_active            Boolean?            @default(true)
+  expires_at           DateTime?           @db.Timestamptz(6)
+  revoked_at           DateTime?           @db.Timestamptz(6)
+  revoked_by           String?             @db.Uuid
+  revoke_reason        String?
+  allowed_ips          String[]
+  allowed_origins      String[]
+  metadata             Json?               @default("{}")
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  user                 public_users?       @relation("api_keys_user", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  site                 sites?              @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  revoker              public_users?       @relation("api_keys_revoker", fields: [revoked_by], references: [id], onUpdate: NoAction)
+  usage_logs           api_key_usage[]
+  site_access          api_key_site_access[]
+
+  @@index([key_hash], map: "idx_api_keys_key_hash")
+  @@index([key_prefix], map: "idx_api_keys_key_prefix")
+  @@index([user_id], map: "idx_api_keys_user_id")
+  @@index([site_id], map: "idx_api_keys_site_id")
+  @@index([is_active], map: "idx_api_keys_is_active")
+  @@index([expires_at], map: "idx_api_keys_expires_at")
+  @@schema("public")
+}
+
+/// API Key usage tracking for analytics and security
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model api_key_usage {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  api_key_id       String    @db.Uuid
+  endpoint         String
+  method           String
+  status_code      Int?
+  response_time_ms Int?
+  ip_address       String?   @db.Inet
+  user_agent       String?
+  origin           String?
+  resource_type    String?
+  resource_id      String?   @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  api_key          api_keys  @relation(fields: [api_key_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([api_key_id], map: "idx_api_key_usage_api_key_id")
+  @@index([created_at(sort: Desc)], map: "idx_api_key_usage_created_at")
+  @@index([api_key_id, created_at(sort: Desc)], map: "idx_api_key_usage_api_key_created")
+  @@schema("public")
+}
+
+/// Explicit site access for API keys (beyond ownership)
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model api_key_site_access {
+  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  api_key_id  String          @db.Uuid
+  site_id     String          @db.Uuid
+  scopes      api_key_scope[] @default([read])
+  created_at  DateTime        @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  api_key     api_keys        @relation(fields: [api_key_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  site        sites           @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([api_key_id, site_id])
+  @@index([api_key_id], map: "idx_api_key_site_access_api_key_id")
+  @@index([site_id], map: "idx_api_key_site_access_site_id")
   @@schema("public")
 }

@@ -18,6 +18,7 @@ export const TEST_USERNAME_PREFIX = "vitest_";
 // Test data IDs stored globally for cleanup
 export interface TestDataIds {
   userId?: string;
+  siteId?: string;
   categoryId?: string;
   tagIds?: string[];
   postId?: string;
@@ -129,22 +130,43 @@ export async function setupTestData(): Promise<TestDataIds> {
   const userId = await createTestUser();
   testDataIds.userId = userId;
 
-  // 2. Create test category
+  // 2. Create test site
+  const site = await prisma.sites.create({
+    data: {
+      name: `${TEST_PREFIX}_Site`,
+      slug: `${TEST_SLUG_PREFIX}site`,
+      domain: `${TEST_SLUG_PREFIX}site.example.com`,
+      description: `${TEST_PREFIX}_Test site for multi-blog support`,
+      tagline: "A test blog",
+      owner_id: userId,
+      settings: {
+        theme: "default",
+        locale: "en",
+        timezone: "UTC",
+        comments_enabled: true,
+      },
+    },
+  });
+  testDataIds.siteId = site.id;
+
+  // 3. Create test category (with site_id)
   const category = await prisma.categories.create({
     data: {
       name: `${TEST_PREFIX}_Category`,
       slug: `${TEST_SLUG_PREFIX}category`,
       description: `${TEST_PREFIX}_Category for testing`,
+      site_id: site.id,
     },
   });
   testDataIds.categoryId = category.id;
 
-  // 3. Create test tags
+  // 4. Create test tags (with site_id)
   const tag1 = await prisma.tags.create({
     data: {
       name: `${TEST_PREFIX}_Tag1`,
       slug: `${TEST_SLUG_PREFIX}tag1`,
       description: `${TEST_PREFIX}_First test tag`,
+      site_id: site.id,
     },
   });
   const tag2 = await prisma.tags.create({
@@ -152,11 +174,12 @@ export async function setupTestData(): Promise<TestDataIds> {
       name: `${TEST_PREFIX}_Tag2`,
       slug: `${TEST_SLUG_PREFIX}tag2`,
       description: `${TEST_PREFIX}_Second test tag`,
+      site_id: site.id,
     },
   });
   testDataIds.tagIds = [tag1.id, tag2.id];
 
-  // 4. Create test series
+  // 5. Create test series (with site_id)
   const series = await prisma.series.create({
     data: {
       name: `${TEST_PREFIX}_Series`,
@@ -164,11 +187,12 @@ export async function setupTestData(): Promise<TestDataIds> {
       description: `${TEST_PREFIX}_Test series for blog posts`,
       total_parts: 3,
       author_id: userId,
+      site_id: site.id,
     },
   });
   testDataIds.seriesId = series.id;
 
-  // 5. Create test post
+  // 6. Create test post (with site_id)
   const post = await prisma.posts.create({
     data: {
       title: `${TEST_PREFIX}_Post`,
@@ -178,6 +202,7 @@ export async function setupTestData(): Promise<TestDataIds> {
       content: `# ${TEST_PREFIX}_Post\n\nThis is test content for the Vitest test suite.\n\n## Section 1\n\nSome test content here.\n\n## Section 2\n\nMore test content.`,
       content_format: "markdown",
       author_id: userId,
+      site_id: site.id,
       series_id: series.id,
       series_part: 1,
       status: "draft",
@@ -328,6 +353,16 @@ export async function cleanupTestData(): Promise<void> {
     if (testDataIds.categoryId) {
       await prisma.categories.delete({
         where: { id: testDataIds.categoryId },
+      }).catch(() => {});
+    }
+
+    // Delete site (this will cascade to site_members)
+    if (testDataIds.siteId) {
+      await prisma.site_members.deleteMany({
+        where: { site_id: testDataIds.siteId },
+      }).catch(() => {});
+      await prisma.sites.delete({
+        where: { id: testDataIds.siteId },
       }).catch(() => {});
     }
 
