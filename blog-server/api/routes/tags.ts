@@ -46,7 +46,7 @@ router.post(
     try {
       const { siteId } = req.params;
       const { prisma } = req;
-      const { name, slug, description, color } = req.body;
+      const { name, slug, description } = req.body;
 
       if (!name || !slug) {
         res.status(400).json({
@@ -61,7 +61,6 @@ router.post(
           name,
           slug,
           description,
-          color,
           site_id: siteId,
         },
       });
@@ -92,7 +91,7 @@ router.patch(
     try {
       const { tagId } = req.params;
       const { prisma, apiKey } = req;
-      const { name, slug, description, color } = req.body;
+      const { name, slug, description } = req.body;
 
       const existingTag = await prisma.tags.findUnique({
         where: { id: tagId },
@@ -114,7 +113,6 @@ router.patch(
           ...(name !== undefined && { name }),
           ...(slug !== undefined && { slug }),
           ...(description !== undefined && { description }),
-          ...(color !== undefined && { color }),
         },
       });
 

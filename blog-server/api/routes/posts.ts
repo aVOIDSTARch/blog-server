@@ -59,17 +59,15 @@ router.get(
           take: limitNum,
           orderBy: { [sort as string]: order },
           include: {
-            author: {
-              select: { id: true, username: true, display_name: true },
-            },
+            users: true,
             post_categories: {
               include: {
-                categories: { select: { id: true, name: true, slug: true } },
+                categories: true,
               },
             },
             post_tags: {
               include: {
-                tags: { select: { id: true, name: true, slug: true } },
+                tags: true,
               },
             },
             post_stats: true,
@@ -78,8 +76,19 @@ router.get(
         prisma.posts.count({ where }),
       ]);
 
+      // Transform posts to include author field
+      const transformedPosts = posts.map((post) => ({
+        ...post,
+        author: post.users ? {
+          id: post.users.id,
+          username: post.users.username,
+          display_name: post.users.display_name,
+        } : null,
+        users: undefined,
+      }));
+
       res.json({
-        data: posts,
+        data: transformedPosts,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -109,15 +118,9 @@ router.get(
       const post = await prisma.posts.findUnique({
         where: { id: postId },
         include: {
-          author: {
-            select: { id: true, username: true, display_name: true, avatar_url: true },
-          },
-          sites: {
-            select: { id: true, name: true, slug: true },
-          },
-          series: {
-            select: { id: true, name: true, slug: true },
-          },
+          users: true,
+          sites: true,
+          series: true,
           post_categories: {
             include: {
               categories: true,
@@ -160,7 +163,19 @@ router.get(
         }
       }
 
-      res.json({ data: post });
+      // Transform post to include author field
+      const transformedPost = {
+        ...post,
+        author: post.users ? {
+          id: post.users.id,
+          username: post.users.username,
+          display_name: post.users.display_name,
+          avatar_url: post.users.avatar_url,
+        } : null,
+        users: undefined,
+      };
+
+      res.json({ data: transformedPost });
     } catch (error) {
       console.error("Error fetching post:", error);
       res.status(500).json({ error: "Internal Server Error" });

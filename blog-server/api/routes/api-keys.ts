@@ -57,7 +57,13 @@ router.get("/", requireScope("read"), async (req: Request, res: Response) => {
         },
       });
 
-      res.json({ data: keys, count: keys.length });
+      // Convert BigInt to Number for JSON serialization
+      const serializedKeys = keys.map((key) => ({
+        ...key,
+        usage_count: Number(key.usage_count ?? 0),
+      }));
+
+      res.json({ data: serializedKeys, count: keys.length });
     } else if (apiKey!.userId) {
       // User can only list their own keys
       const keys = await listUserApiKeys(prisma, apiKey!.userId);
@@ -131,7 +137,13 @@ router.get("/:keyId", requireScope("read"), async (req: Request, res: Response) 
       return;
     }
 
-    res.json({ data: key });
+    // Convert BigInt to Number for JSON serialization
+    res.json({
+      data: {
+        ...key,
+        usage_count: Number(key.usage_count ?? 0),
+      },
+    });
   } catch (error) {
     console.error("Error fetching API key:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -290,7 +302,13 @@ router.patch("/:keyId", requireScope("write"), async (req: Request, res: Respons
       },
     });
 
-    res.json({ data: key });
+    // Convert BigInt to Number for JSON serialization
+    res.json({
+      data: {
+        ...key,
+        usage_count: Number(key.usage_count ?? 0),
+      },
+    });
   } catch (error) {
     console.error("Error updating API key:", error);
     res.status(500).json({ error: "Internal Server Error" });

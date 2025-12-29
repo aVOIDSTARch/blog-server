@@ -19,9 +19,7 @@ router.get(
       const categories = await prisma.categories.findMany({
         where: { site_id: siteId },
         include: {
-          parent: {
-            select: { id: true, name: true, slug: true },
-          },
+          categories: true, // parent category (self-relation)
           _count: {
             select: { post_categories: true },
           },
@@ -29,7 +27,18 @@ router.get(
         orderBy: { name: "asc" },
       });
 
-      res.json({ data: categories, count: categories.length });
+      // Transform to include parent field
+      const transformedCategories = categories.map((cat) => ({
+        ...cat,
+        parent: cat.categories ? {
+          id: cat.categories.id,
+          name: cat.categories.name,
+          slug: cat.categories.slug,
+        } : null,
+        categories: undefined,
+      }));
+
+      res.json({ data: transformedCategories, count: categories.length });
     } catch (error) {
       console.error("Error fetching categories:", error);
       res.status(500).json({ error: "Internal Server Error" });
