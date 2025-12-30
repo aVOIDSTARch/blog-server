@@ -1,6 +1,6 @@
 {
   "name": "@casinelli/blog-server",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "A RESTful API server for managing multi-tenant blog sites with Express, Prisma, and PostgreSQL",
   "author": "Louis Casinelli",
@@ -39,10 +39,12 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "vite",
     "dev:api": "tsx watch api/server.ts",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "concurrently -n api,web -c blue,green \"npm run start:api\" \"npm run preview\"",
     "start:api": "tsx api/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -57,6 +59,7 @@
     "@types/pg": "^8.16.0",
     "@types/supertest": "^6.0.3",
     "@types/swagger-ui-express": "^4.1.8",
+    "concurrently": "^9.2.1",
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.15",

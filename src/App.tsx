@@ -5,6 +5,7 @@ import Sites from "./pages/Sites";
 import Users from "./pages/Users";
 import ApiKeys from "./pages/ApiKeys";
 import Posts from "./pages/Posts";
+import Comments from "./pages/Comments";
 
 const Layout: Component<{ children?: any }> = (props) => {
   return (
@@ -26,6 +27,9 @@ const Layout: Component<{ children?: any }> = (props) => {
             <A href="/posts">Posts</A>
           </li>
           <li>
+            <A href="/comments">Comments</A>
+          </li>
+          <li>
             <A href="/users">Users</A>
           </li>
           <li>
@@ -44,6 +48,7 @@ const App: Component = () => {
       <Route path="/" component={Dashboard} />
       <Route path="/sites" component={Sites} />
       <Route path="/posts" component={Posts} />
+      <Route path="/comments" component={Comments} />
       <Route path="/users" component={Users} />
       <Route path="/api-keys" component={ApiKeys} />
     </Router>
